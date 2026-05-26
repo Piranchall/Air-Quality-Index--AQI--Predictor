@@ -1,0 +1,54 @@
+# ── Environment & Secrets ──────────────────────────────────
+.env
+*.env
+.env.local
+
+# ── Python ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# ── Data (keep .gitkeep, ignore actual data files) ─────────
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.csv
+*.parquet
+*.json
+
+# ── Models (stored in Hopsworks registry, not git) ─────────
+models/
+*.pkl
+*.joblib
+*.h5
+*.keras
+saved_model/
+
+# ── Notebooks ──────────────────────────────────────────────
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# ── IDE ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ── Testing & Coverage ─────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Logs ───────────────────────────────────────────────────
+logs/
+*.log
