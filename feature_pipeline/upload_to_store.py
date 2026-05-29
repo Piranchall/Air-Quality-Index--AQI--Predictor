@@ -26,15 +26,37 @@ from loguru import logger
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import (
-    HOPSWORKS_HOST,
     HOPSWORKS_API_KEY,
     HOPSWORKS_PROJECT_NAME,
+    HOPSWORKS_HOST,
     FEATURE_GROUP_NAME,
     FEATURE_GROUP_VERSION,
     CITY_NAME,
 )
 from feature_pipeline.fetch_data import fetch_current_snapshot, fetch_backfill
 from feature_pipeline.engineer_features import engineer_features
+
+
+# ── Expected schema ────────────────────────────────────────
+# All columns the feature group expects — must always be present
+
+FLOAT_COLS = [
+    "aqi", "pm25", "pm10", "o3", "no2", "so2", "co",
+    "aqi_lag_1h", "aqi_lag_3h", "aqi_lag_6h", "aqi_lag_24h",
+    "aqi_rolling_mean_3h", "aqi_rolling_mean_6h", "aqi_rolling_mean_24h",
+    "aqi_rolling_std_3h", "aqi_rolling_max_6h",
+    "aqi_change_rate", "aqi_change_rate_3h",
+    "temp_c", "feels_like_c", "humidity_pct", "pressure_hpa",
+    "wind_speed_ms", "wind_deg", "clouds_pct", "rain_1h_mm", "visibility_m",
+    "wind_u", "wind_v", "temp_humidity_index", "pressure_change",
+    "pm_ratio",
+    "hour_sin", "hour_cos", "month_sin", "month_cos", "dow_sin", "dow_cos",
+]
+
+INT_COLS = [
+    "hour", "day_of_week", "month", "day_of_year",
+    "is_weekend", "is_rush_hour", "is_raining",
+]
 
 
 # ── Hopsworks connection ───────────────────────────────────
@@ -69,11 +91,56 @@ def get_or_create_feature_group(fs):
         ),
         primary_key=["timestamp", "city"],
         event_time="timestamp",
-        online_enabled=True,   # enables real-time reads for inference
+        online_enabled=True,
     )
 
     logger.success(f"Feature group ready: '{fg.name}' v{fg.version}")
     return fg
+
+
+# ── Schema enforcement ─────────────────────────────────────
+
+def enforce_schema(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensure the DataFrame matches the feature group schema exactly:
+    - All expected columns are present (add as NaN if missing)
+    - Correct dtypes for every column
+    - Timestamp is datetime64[us, UTC]
+    - City column is always present
+    """
+    df = df.copy()
+
+    # ── Timestamp ──────────────────────────────────────────
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+
+    # ── City ───────────────────────────────────────────────
+    if "city" not in df.columns:
+        df["city"] = CITY_NAME
+
+    # ── Float columns — add as NaN if missing ──────────────
+    for col in FLOAT_COLS:
+        if col not in df.columns:
+            logger.warning(f"Adding missing float column: {col}")
+            df[col] = float("nan")
+        else:
+            df[col] = df[col].astype("float64")
+
+    # ── Int columns — add as 0 if missing ──────────────────
+    for col in INT_COLS:
+        if col not in df.columns:
+            logger.warning(f"Adding missing int column: {col}")
+            df[col] = 0
+        else:
+            df[col] = df[col].astype("int32")
+
+    # ── Drop unexpected extra columns ──────────────────────
+    expected_cols = FLOAT_COLS + INT_COLS + ["timestamp", "city"]
+    extra_cols = [c for c in df.columns if c not in expected_cols]
+    if extra_cols:
+        logger.warning(f"Dropping unexpected columns: {extra_cols}")
+        df = df.drop(columns=extra_cols)
+
+    return df
 
 
 # ── Upload ─────────────────────────────────────────────────
@@ -89,33 +156,13 @@ def upload_features(df: pd.DataFrame) -> None:
         logger.warning("Empty DataFrame — nothing to upload.")
         return
 
-    # Hopsworks 4.7+ requires timestamp as datetime64, not string
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-
-    # Add city column if missing (needed for primary key)
-    if "city" not in df.columns:
-        df["city"] = CITY_NAME
-
-    # Drop any fully-null columns — Hopsworks doesn't accept them on first insert
-    null_cols = [c for c in df.columns if df[c].isnull().all()]
-    if null_cols:
-        logger.warning(f"Dropping fully-null columns: {null_cols}")
-        df = df.drop(columns=null_cols)
+    # Enforce schema before uploading
+    df = enforce_schema(df)
 
     logger.info(f"Uploading {len(df)} rows to Feature Store...")
 
     fs = get_feature_store()
     fg = get_or_create_feature_group(fs)
-
-    # Ensure correct dtypes before inserting
-    float_cols = ["aqi", "pm25", "pm10", "o3", "no2", "so2", "co",
-                "aqi_lag_1h", "aqi_lag_3h", "aqi_lag_6h", "aqi_lag_24h",
-                "pm_ratio", "pressure_hpa", "temp_c", "feels_like_c",
-                "humidity_pct", "wind_speed_ms", "wind_deg", "clouds_pct",
-                "rain_1h_mm", "visibility_m"]
-    for col in float_cols:
-        if col in df.columns:
-            df[col] = df[col].astype(float)
 
     fg.insert(df, write_options={"wait_for_job": True})
 
@@ -132,7 +179,8 @@ def run_pipeline(backfill: bool = False, days: int = 5, filepath: str = None):
     Run the complete feature pipeline end to end:
       1. Fetch raw data  (or load from file)
       2. Engineer features
-      3. Upload to Feature Store
+      3. Enforce schema
+      4. Upload to Feature Store
 
     Args:
         backfill : If True, fetch historical data instead of current snapshot
