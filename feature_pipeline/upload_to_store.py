@@ -107,6 +107,16 @@ def upload_features(df: pd.DataFrame) -> None:
     fs = get_feature_store()
     fg = get_or_create_feature_group(fs)
 
+    # Ensure correct dtypes before inserting
+    float_cols = ["aqi", "pm25", "pm10", "o3", "no2", "so2", "co",
+                "aqi_lag_1h", "aqi_lag_3h", "aqi_lag_6h", "aqi_lag_24h",
+                "pm_ratio", "pressure_hpa", "temp_c", "feels_like_c",
+                "humidity_pct", "wind_speed_ms", "wind_deg", "clouds_pct",
+                "rain_1h_mm", "visibility_m"]
+    for col in float_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(float)
+
     fg.insert(df, write_options={"wait_for_job": True})
 
     logger.success(
