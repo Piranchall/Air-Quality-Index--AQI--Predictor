@@ -47,7 +47,7 @@ FLOAT_COLS = [
     "aqi_rolling_std_3h", "aqi_rolling_max_6h",
     "aqi_change_rate", "aqi_change_rate_3h",
     "temp_c", "feels_like_c", "humidity_pct", "pressure_hpa",
-    "wind_speed_ms", "wind_deg", "clouds_pct", "rain_1h_mm", "visibility_m",
+    "wind_speed_ms", "wind_deg", "clouds_pct", "rain_1h_mm",
     "wind_u", "wind_v", "temp_humidity_index", "pressure_change",
     "pm_ratio",
     "hour_sin", "hour_cos", "month_sin", "month_cos", "dow_sin", "dow_cos",
@@ -133,6 +133,10 @@ def enforce_schema(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df[col] = df[col].astype("int32")
 
+    # visibility_m not in feature group schema — drop it
+    if "visibility_m" in df.columns:
+        df = df.drop(columns=["visibility_m"])
+        
     # ── Drop unexpected extra columns ──────────────────────
     expected_cols = FLOAT_COLS + INT_COLS + ["timestamp", "city"]
     extra_cols = [c for c in df.columns if c not in expected_cols]
