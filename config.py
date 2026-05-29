@@ -23,8 +23,8 @@ MODEL_NAME = "aqi_forecaster"
 
 # ── Target City ────────────────────────────────────────────
 CITY_NAME = os.getenv("CITY_NAME", "London")
-CITY_LAT = float(os.getenv("CITY_LAT", 51.5074))
-CITY_LON = float(os.getenv("CITY_LON", -0.1278))
+CITY_LAT = float(os.getenv("CITY_LAT") or 24.8607)
+CITY_LON = float(os.getenv("CITY_LON") or 67.0011)
 
 # ── Feature Engineering ────────────────────────────────────
 # How many hours of history to use as input features for the model
