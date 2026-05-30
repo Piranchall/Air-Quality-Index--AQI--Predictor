@@ -7,13 +7,14 @@ numpy==1.26.4
 # ── Machine Learning ───────────────────────────────────────
 scikit-learn==1.5.0
 tensorflow==2.16.1
+xgboost==2.0.3
 joblib==1.4.2
 
 # ── Explainability ─────────────────────────────────────────
 shap==0.45.1
 
 # ── Feature Store ──────────────────────────────────────────
-hopsworks==4.7.*
+hopsworks[python]==4.7.*
 confluent-kafka==2.3.0
 
 # ── Dashboard ──────────────────────────────────────────────

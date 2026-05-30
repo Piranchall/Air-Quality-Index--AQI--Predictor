@@ -1,0 +1,42 @@
+name: Training Pipeline (Daily)
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # every day at midnight UTC
+  workflow_dispatch:        # manual trigger from GitHub UI
+
+jobs:
+  run-training-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Train models
+        env:
+          AQICN_API_KEY:           ${{ secrets.AQICN_API_KEY }}
+          OPENWEATHER_API_KEY:     ${{ secrets.OPENWEATHER_API_KEY }}
+          HOPSWORKS_API_KEY:       ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT_NAME:  ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+          HOPSWORKS_HOST:          ${{ secrets.HOPSWORKS_HOST }}
+          CITY_NAME:               ${{ secrets.CITY_NAME }}
+          CITY_LAT:                ${{ secrets.CITY_LAT }}
+          CITY_LON:                ${{ secrets.CITY_LON }}
+        run: python training_pipeline/train.py
+
+      - name: Register best model
+        env:
+          HOPSWORKS_API_KEY:       ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT_NAME:  ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+          HOPSWORKS_HOST:          ${{ secrets.HOPSWORKS_HOST }}
+        run: python training_pipeline/register_model.py
