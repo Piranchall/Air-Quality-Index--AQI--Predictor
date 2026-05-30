@@ -30,7 +30,7 @@ from feature_pipeline.engineer_features import engineer_features
 from feature_pipeline.upload_to_store import upload_features
 
 # ── Open-Meteo endpoints (no API key needed) ───────────────
-WEATHER_URL   = "https://archive-api.open-meteo.com/v1/archive"
+WEATHER_URL = "https://archive-api.open-meteo.com/v1/archive"
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
 
@@ -55,7 +55,6 @@ def fetch_historical_weather(start_date: str, end_date: str) -> pd.DataFrame:
             "cloud_cover",
             "wind_speed_10m",
             "wind_direction_10m",
-            "visibility",
         ]),
         "timezone": "UTC",
         "wind_speed_unit": "ms",
@@ -76,8 +75,7 @@ def fetch_historical_weather(start_date: str, end_date: str) -> pd.DataFrame:
         "wind_deg":      hourly["wind_direction_10m"],
         "clouds_pct":    hourly["cloud_cover"],
         "rain_1h_mm":    hourly["rain"],
-        "visibility_m":  [v * 1000 if v is not None else None
-                          for v in hourly["visibility"]],
+        "visibility_m":  None,
         "weather_main":  "Historical",
         "weather_desc":  "historical data",
     })

@@ -33,7 +33,7 @@ from config import (
 )
 
 # ── Constants ─────────────────────────────────────────────
-AQICN_URL = "https://api.waqi.info/feed/{city}/"
+url = "https://api.waqi.info/feed/A401143/" # University of Karachi, NED UET — active station
 OPENWEATHER_CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
 OPENWEATHER_HISTORY_URL = "https://history.openweathermap.org/data/2.5/history/city"
 
@@ -45,7 +45,7 @@ def fetch_aqicn(city: str = CITY_NAME) -> dict:
     Fetch current AQI and pollutant data from AQICN for a given city.
     Returns a flat dict ready for DataFrame construction.
     """
-    url = AQICN_URL.format(city=city.lower().replace(" ", "-"))
+    url = "https://api.waqi.info/feed/A401143/"
     params = {"token": AQICN_API_KEY}
 
     logger.info(f"Fetching AQICN data for '{city}'...")
