@@ -65,7 +65,7 @@ def fetch_aqicn(city: str = CITY_NAME) -> dict:
             minute=0, second=0, microsecond=0
         ).isoformat(),
         "city": city,
-        "aqi": float(station.get("aqi", None)),
+        "aqi": float(station.get("aqi", 0)) if station.get("aqi", "-") != "-" else None,
         "pm25": float(iaqi.get("pm25", {}).get("v", None)) if "pm25" in iaqi else None,
         "pm10": float(iaqi.get("pm10", {}).get("v", None)) if "pm10" in iaqi else None,
         "o3":   float(iaqi.get("o3",   {}).get("v", None)) if "o3"   in iaqi else None,
