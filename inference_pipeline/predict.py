@@ -91,29 +91,72 @@ def load_model_from_registry(project) -> tuple:
 
 # ── Load features ──────────────────────────────────────────
 
+# def load_latest_features(project, feature_names: list) -> pd.DataFrame:
+#     """
+#     Load the most recent 24 hours of features from the Feature Store.
+#     These are used as the seed for iterative forecasting.
+
+#     Returns:
+#         DataFrame with last 24 rows, sorted by timestamp
+#     """
+#     logger.info("Loading latest features from Feature Store...")
+
+#     fs = project.get_feature_store()
+#     fg = fs.get_feature_group(
+#         name=FEATURE_GROUP_NAME,
+#         version=FEATURE_GROUP_VERSION,
+#     )
+
+#     df = fg.read()
+#     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+#     df = df.sort_values("timestamp").tail(48).reset_index(drop=True)
+#     logger.info(f"Seed data range: {df['timestamp'].min()} → {df['timestamp'].max()}")
+
+#     logger.success(f"Loaded {len(df)} recent rows for forecasting")
+#     return df
+
 def load_latest_features(project, feature_names: list) -> pd.DataFrame:
     """
     Load the most recent 24 hours of features from the Feature Store.
     These are used as the seed for iterative forecasting.
-
+ 
     Returns:
         DataFrame with last 24 rows, sorted by timestamp
     """
     logger.info("Loading latest features from Feature Store...")
-
+ 
     fs = project.get_feature_store()
     fg = fs.get_feature_group(
         name=FEATURE_GROUP_NAME,
         version=FEATURE_GROUP_VERSION,
     )
-
+ 
     df = fg.read()
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-    df = df.sort_values("timestamp").tail(24).reset_index(drop=True)
+    df = df.sort_values("timestamp").tail(48).reset_index(drop=True)
+ 
+    # Recompute lag features from actual AQI values
+    # Fixes NaN lags in live rows inserted one at a time
+    df["aqi_lag_1h"]  = df["aqi"].shift(1)
+    df["aqi_lag_3h"]  = df["aqi"].shift(3)
+    df["aqi_lag_6h"]  = df["aqi"].shift(6)
+    df["aqi_lag_24h"] = df["aqi"].shift(24)
+    df["aqi_rolling_mean_3h"]  = df["aqi"].rolling(3,  min_periods=1).mean()
+    df["aqi_rolling_mean_6h"]  = df["aqi"].rolling(6,  min_periods=1).mean()
+    df["aqi_rolling_mean_24h"] = df["aqi"].rolling(24, min_periods=1).mean()
+    df["aqi_rolling_std_3h"]   = df["aqi"].rolling(3,  min_periods=1).std().fillna(0)
+    df["aqi_rolling_max_6h"]   = df["aqi"].rolling(6,  min_periods=1).max()
+    df["aqi_change_rate"]      = df["aqi"].diff(1).fillna(0)
+    df["aqi_change_rate_3h"]   = df["aqi"].diff(3).fillna(0)
+ 
+    # Use last 24 rows as seed
+    df = df.tail(24).reset_index(drop=True)
+ 
     logger.info(f"Seed data range: {df['timestamp'].min()} → {df['timestamp'].max()}")
-
-    logger.success(f"Loaded {len(df)} recent rows for forecasting")
+    logger.success(f"Loaded {len(df)} rows with recomputed lags")
     return df
+
+
 
 
 # ── Iterative forecasting ──────────────────────────────────
@@ -286,7 +329,7 @@ def get_daily_summary(forecast_df: pd.DataFrame) -> list[dict]:
     summaries = []
     for date, group in forecast_df.groupby("date"):
         # Skip partial days — need at least 20 hours to be meaningful
-        if len(group) < 12:
+        if len(group) < 20:
             continue
         
         avg_aqi  = group["predicted_aqi"].mean()

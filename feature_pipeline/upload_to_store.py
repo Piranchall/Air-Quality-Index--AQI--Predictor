@@ -178,6 +178,53 @@ def upload_features(df: pd.DataFrame) -> None:
 
 # ── Full pipeline run ──────────────────────────────────────
 
+# def run_pipeline(backfill: bool = False, days: int = 5, filepath: str = None):
+#     """
+#     Run the complete feature pipeline end to end:
+#       1. Fetch raw data  (or load from file)
+#       2. Engineer features
+#       3. Enforce schema
+#       4. Upload to Feature Store
+
+#     Args:
+#         backfill : If True, fetch historical data instead of current snapshot
+#         days     : Number of days to backfill (used if backfill=True)
+#         filepath : Path to a CSV file to upload directly (skips fetch step)
+#     """
+#     logger.info("=" * 50)
+#     logger.info("Feature Pipeline Starting")
+#     logger.info(f"Mode: {'backfill' if backfill else 'snapshot'} | City: {CITY_NAME}")
+#     logger.info("=" * 50)
+
+#     # Step 1: Get raw data
+#     if filepath:
+#         logger.info(f"Loading raw data from file: {filepath}")
+#         df_raw = pd.read_csv(filepath)
+#     elif backfill:
+#         df_raw = fetch_backfill(days=days)
+#     else:
+#         df_raw = fetch_current_snapshot()
+
+#     # Step 2: Engineer features
+#     df_features = engineer_features(df_raw)
+
+#     # Step 3: Save processed data locally (optional, for debugging)
+#     os.makedirs("data/processed", exist_ok=True)
+#     out_path = (
+#         f"data/processed/features_"
+#         f"{'backfill' if backfill else 'snapshot'}_"
+#         f"{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+#     )
+#     df_features.to_csv(out_path, index=False)
+#     logger.info(f"Features saved locally to {out_path}")
+
+#     # Step 4: Upload to Hopsworks
+#     upload_features(df_features)
+
+#     logger.info("Feature Pipeline Complete ✓")
+
+# ── Full pipeline run ──────────────────────────────────────
+ 
 def run_pipeline(backfill: bool = False, days: int = 5, filepath: str = None):
     """
     Run the complete feature pipeline end to end:
@@ -185,7 +232,7 @@ def run_pipeline(backfill: bool = False, days: int = 5, filepath: str = None):
       2. Engineer features
       3. Enforce schema
       4. Upload to Feature Store
-
+ 
     Args:
         backfill : If True, fetch historical data instead of current snapshot
         days     : Number of days to backfill (used if backfill=True)
@@ -195,7 +242,7 @@ def run_pipeline(backfill: bool = False, days: int = 5, filepath: str = None):
     logger.info("Feature Pipeline Starting")
     logger.info(f"Mode: {'backfill' if backfill else 'snapshot'} | City: {CITY_NAME}")
     logger.info("=" * 50)
-
+ 
     # Step 1: Get raw data
     if filepath:
         logger.info(f"Loading raw data from file: {filepath}")
@@ -204,10 +251,38 @@ def run_pipeline(backfill: bool = False, days: int = 5, filepath: str = None):
         df_raw = fetch_backfill(days=days)
     else:
         df_raw = fetch_current_snapshot()
-
-    # Step 2: Engineer features
+ 
+    # Step 2: For live snapshots, fetch last 24 rows for lag context
+    if not backfill and not filepath:
+        try:
+            import hopsworks as hw
+            logger.info("Fetching last 24 rows for lag context...")
+            _project = hw.login(
+                host=HOPSWORKS_HOST,
+                api_key_value=HOPSWORKS_API_KEY,
+                project=HOPSWORKS_PROJECT_NAME,
+            )
+            _fs = _project.get_feature_store()
+            _fg = _fs.get_feature_group(name=FEATURE_GROUP_NAME, version=FEATURE_GROUP_VERSION)
+            df_history = _fg.read()
+            df_history["timestamp"] = pd.to_datetime(df_history["timestamp"], utc=True)
+            df_history = df_history.sort_values("timestamp").tail(24)
+            raw_cols = [c for c in df_raw.columns if c in df_history.columns]
+            df_history = df_history[raw_cols]
+            df_raw = pd.concat([df_history, df_raw], ignore_index=True)
+            df_raw = df_raw.sort_values("timestamp").reset_index(drop=True)
+            logger.success(f"Combined {len(df_raw)} rows for feature engineering")
+        except Exception as e:
+            logger.warning(f"Could not fetch history: {e} — proceeding without lag context")
+ 
+    # Step 3: Engineer features on combined data
     df_features = engineer_features(df_raw)
-
+ 
+    # Keep only the new row for upload
+    if not backfill and not filepath and len(df_features) > 1:
+        df_features = df_features.tail(1).reset_index(drop=True)
+        logger.info("Keeping only new row for upload")
+ 
     # Step 3: Save processed data locally (optional, for debugging)
     os.makedirs("data/processed", exist_ok=True)
     out_path = (
@@ -217,12 +292,11 @@ def run_pipeline(backfill: bool = False, days: int = 5, filepath: str = None):
     )
     df_features.to_csv(out_path, index=False)
     logger.info(f"Features saved locally to {out_path}")
-
+ 
     # Step 4: Upload to Hopsworks
     upload_features(df_features)
-
+ 
     logger.info("Feature Pipeline Complete ✓")
-
 
 # ── CLI ────────────────────────────────────────────────────
 
