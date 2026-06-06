@@ -340,17 +340,17 @@
         <span class="live"><span class="dot"></span> Live</span>
       </div>
       <span class="clock" id="clock">—</span>
-      <span>Model · GradientBoost v3 · 72h horizon</span>
+      <span id="modelTag">Model · — · 72h horizon</span>
     </div>
   </header>
 
   <!-- HERO -->
   <section class="hero">
     <div class="aqi-block rv">
-      <span class="aqi-cat-tag"><span class="sw"></span> <span id="catTag">Unhealthy · US EPA AQI</span></span>
+      <span class="aqi-cat-tag"><span class="sw"></span> <span id="catTag">— · US EPA AQI</span></span>
       <div class="aqi-number" id="aqiNum">—</div>
       <div class="aqi-sub">
-        <span class="aqi-scale-word" id="catWord">Unhealthy</span>
+        <span class="aqi-scale-word" id="catWord">—</span>
         <span class="aqi-unit">AQI · PM2.5 dominant</span>
       </div>
       <div class="trend"><span class="arrow">▲</span> <span id="trendTxt">Rising — peaks near 188 in ~18h before easing into the weekend</span></div>
@@ -413,7 +413,7 @@
   <!-- HEALTH -->
   <section class="health rv" id="health">
     <div class="hicon">
-      <svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9.5-9C.8 8.6 2.4 4.5 6 4.5c2.1 0 3.4 1.2 4 2.3.6-1.1 1.9-2.3 4-2.3 3.6 0 5.2 4.1 3.5 7.5C19 16.5 12 21 12 21z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
     </div>
     <div class="htext">
       <span class="htag" id="healthTag">Health Advisory · Unhealthy</span>
@@ -501,6 +501,9 @@ const cur=band(CURRENT);
 document.documentElement.style.setProperty('--cat',cur.color);
 document.documentElement.style.setProperty('--cat-soft',cur.soft);
 document.documentElement.style.setProperty('--cat-glow',cur.glow);
+document.getElementById('catTag').textContent  = cur.name + ' · US EPA AQI';
+document.getElementById('catWord').textContent = cur.name;
+document.querySelector('.sw').style.background = cur.color;
 
 (function(){
   const stops=[0,50,100,150,200,300,500];

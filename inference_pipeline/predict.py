@@ -300,8 +300,8 @@ def get_daily_summary(forecast_df: pd.DataFrame) -> list[dict]:
     summaries = []
     for date, group in forecast_df.groupby("date"):
         # Skip partial days — need at least 20 hours to be meaningful
-        if len(group) < 20:
-            continue
+        # if len(group) < 6:
+        #     continue
         
         avg_aqi  = group["predicted_aqi"].mean()
         max_aqi  = group["predicted_aqi"].max()
