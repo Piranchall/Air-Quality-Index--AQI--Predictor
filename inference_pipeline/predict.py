@@ -88,33 +88,6 @@ def load_model_from_registry(project) -> tuple:
     )
     return model, feature_names, metadata
 
-
-# ── Load features ──────────────────────────────────────────
-
-# def load_latest_features(project, feature_names: list) -> pd.DataFrame:
-#     """
-#     Load the most recent 24 hours of features from the Feature Store.
-#     These are used as the seed for iterative forecasting.
-
-#     Returns:
-#         DataFrame with last 24 rows, sorted by timestamp
-#     """
-#     logger.info("Loading latest features from Feature Store...")
-
-#     fs = project.get_feature_store()
-#     fg = fs.get_feature_group(
-#         name=FEATURE_GROUP_NAME,
-#         version=FEATURE_GROUP_VERSION,
-#     )
-
-#     df = fg.read()
-#     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-#     df = df.sort_values("timestamp").tail(48).reset_index(drop=True)
-#     logger.info(f"Seed data range: {df['timestamp'].min()} → {df['timestamp'].max()}")
-
-#     logger.success(f"Loaded {len(df)} recent rows for forecasting")
-#     return df
-
 def load_latest_features(project, feature_names: list) -> pd.DataFrame:
     """
     Load the most recent 24 hours of features from the Feature Store.
@@ -155,8 +128,6 @@ def load_latest_features(project, feature_names: list) -> pd.DataFrame:
     logger.info(f"Seed data range: {df['timestamp'].min()} → {df['timestamp'].max()}")
     logger.success(f"Loaded {len(df)} rows with recomputed lags")
     return df
-
-
 
 
 # ── Iterative forecasting ──────────────────────────────────
