@@ -169,28 +169,56 @@ def _category(aqi: float) -> str:
 #  ROUTES
 # ══════════════════════════════════════════════════════════
 
-@app.get("/", tags=["Info"])
+from fastapi.responses import HTMLResponse
+
+@app.get("/", tags=["Info"], response_class=HTMLResponse)
 def root():
-    """API overview and available endpoints."""
-    return {
-        "name":        "Karachi AQI Predictor API",
-        "version":     "1.0.0",
-        "city":        CITY_NAME,
-        "coordinates": {"lat": CITY_LAT, "lon": CITY_LON},
-        "model":       MODEL_NAME,
-        "forecast_days": FORECAST_DAYS,
-        "endpoints": {
-            "GET /health":   "Model and feature store status",
-            "GET /current":  "Current AQI and weather snapshot",
-            "GET /predict":  "Full 72h forecast + daily summary + SHAP values",
-            "GET /forecast": "Hourly forecast only",
-            "GET /daily":    "3-day daily summary only",
-            "GET /shap":     "Feature importance (SHAP) only",
-            "GET /alert":    "Current health advisory",
-            "GET /docs":     "Interactive Swagger UI",
-        },
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
+    """API landing page."""
+    return HTMLResponse(content="""
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Karachi AQI Predictor API</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f111a; color: #eef1ff; font-family: 'Segoe UI', sans-serif;
+           display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: rgba(28,34,68,.6); border: 1px solid rgba(150,170,255,.14);
+            border-radius: 24px; padding: 48px; max-width: 620px; width: 90%; backdrop-filter: blur(16px); }
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px;
+         background: linear-gradient(135deg, #7c5cff, #22d3ee); -webkit-background-clip: text;
+         -webkit-text-fill-color: transparent; }
+    .sub { color: #a6aede; font-size: 14px; margin-bottom: 32px; }
+    .badge { display: inline-block; background: rgba(34,211,238,.15);
+             border: 1px solid rgba(34,211,238,.3); color: #22d3ee;
+             padding: 4px 12px; border-radius: 100px; font-size: 11px;
+             letter-spacing: .1em; margin-bottom: 32px; }
+    .endpoints { display: flex; flex-direction: column; gap: 10px; }
+    .ep:hover { background: rgba(124,92,255,.12); border-color: rgba(124,92,255,.4); }
+    .method { background: rgba(124,92,255,.25); color: #a78bfa;
+              padding: 3px 8px; border-radius: 6px; font-size: 10px;
+              font-weight: 700; letter-spacing: .1em; flex-shrink: 0; }
+    .path { font-family: monospace; font-size: 13px; color: #22d3ee; flex-shrink: 0; }
+    .desc { font-size: 12px; color: #6f78ad; margin-left: auto; text-align: right; }
+    .docs-btn { display: block; margin-top: 24px; text-align: center; padding: 14px;
+                background: linear-gradient(135deg, #7c5cff, #22d3ee); border-radius: 12px;
+                font-weight: 700; font-size: 14px; text-decoration: none; color: white;
+                letter-spacing: .05em; }
+    .docs-btn:hover { opacity: .9; }
+    .city { color: #6f78ad; font-size: 12px; margin-top: 24px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">🌫️ LIVE · KARACHI AQI PREDICTOR</div>
+    <h1>AQI Forecast API</h1>
+    <p class="sub">72-hour air quality predictions for Karachi, Pakistan · Ridge Regression · R² = 0.985</p>
+    <a class="docs-btn" href="/docs">📖 Open Interactive API Docs →</a>
+    <p class="city">📍 Karachi · 24.8607°N 67.0011°E · Updated every hour</p>
+  </div>
+</body>
+</html>
+""")
 
 
 @app.get("/health", response_model=HealthStatus, tags=["Status"])
