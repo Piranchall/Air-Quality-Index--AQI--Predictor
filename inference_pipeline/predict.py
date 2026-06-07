@@ -236,54 +236,52 @@ def generate_forecast(
 
 def compute_shap_values(model, X: pd.DataFrame) -> dict:
     """
-    Compute feature importance using Ridge coefficients * feature values.
-    For linear models this is equivalent to SHAP and always returns real values.
-    Falls back to SHAP TreeExplainer for tree-based models.
+    Compute SHAP feature importance for the current prediction.
+    Uses shap.LinearExplainer for Ridge — exact analytical SHAP values.
     """
+    import shap
+
     try:
         if hasattr(model, "named_steps"):
             estimator = list(model.named_steps.values())[-1]
             scaler    = model.named_steps.get("scaler", None)
-            X_scaled  = scaler.transform(X) if scaler else X.values
+            X_input   = pd.DataFrame(
+                scaler.transform(X) if scaler else X.values,
+                columns=X.columns
+            )
         else:
             estimator = model
-            X_scaled  = X.values
+            X_input   = X.copy()
 
-        # Ridge/Linear: importance = |coef * feature_value|
         if hasattr(estimator, "coef_"):
-            coefs = np.abs(estimator.coef_)
-            vals  = np.abs(X_scaled[0])
-            importance_scores = coefs * vals
-            importance = dict(zip(X.columns, importance_scores))
-            top10 = dict(
-                sorted(importance.items(), key=lambda x: x[1], reverse=True)[:10]
+            # LinearExplainer needs a background dataset — use the input itself
+            # as background (single prediction, no training data needed)
+            background = np.zeros((1, X_input.shape[1]))
+            explainer  = shap.LinearExplainer(
+                estimator,
+                background,
+                feature_perturbation="interventional"
             )
-            # Normalise to 0-1 range for display
-            max_val = max(top10.values()) if top10 else 1
-            top10 = {k: round(v / max_val, 4) for k, v in top10.items()}
-            logger.success("Feature importance computed from Ridge coefficients")
-            return top10
+            shap_vals  = explainer.shap_values(X_input.values)
+            raw        = dict(zip(X_input.columns, np.abs(shap_vals[0])))
+        else:
+            explainer = shap.TreeExplainer(estimator)
+            shap_vals = explainer.shap_values(X_input.values[:1])
+            raw       = dict(zip(X_input.columns, np.abs(shap_vals[0])))
 
-        # Tree models: use SHAP
-        import shap
-        explainer = shap.TreeExplainer(estimator)
-        shap_vals = explainer.shap_values(X_scaled[:1])
-        importance = dict(zip(X.columns, np.abs(shap_vals[0])))
-        top10 = dict(
-            sorted(importance.items(), key=lambda x: x[1], reverse=True)[:10]
-        )
-        logger.success("SHAP values computed")
-        return top10
+        # Top 10, normalised 0-1
+        top10   = dict(sorted(raw.items(), key=lambda x: x[1], reverse=True)[:10])
+        max_val = max(top10.values()) if top10 and max(top10.values()) > 0 else 1
+        return {k: round(v / max_val, 4) for k, v in top10.items()}
 
     except Exception as e:
-        logger.warning(f"Feature importance failed: {e} — using fallback")
-        # Fallback: return hardcoded known important features
-        return {
-            "aqi_lag_1h": 0.91, "aqi_rolling_mean_24h": 0.73,
-            "aqi_change_rate": 0.56, "humidity_pct": 0.41,
-            "wind_speed_ms": 0.33, "temp_c": 0.24,
-            "pressure_hpa": 0.18, "hour_sin": 0.12,
-        }
+        logger.warning(f"SHAP failed: {e} — using coefficient fallback")
+        coefs      = np.abs(estimator.coef_)
+        vals       = np.abs(X.values[0])
+        importance = dict(zip(X.columns, coefs * vals))
+        top10      = dict(sorted(importance.items(), key=lambda x: x[1], reverse=True)[:10])
+        max_val    = max(top10.values()) if top10 and max(top10.values()) > 0 else 1
+        return {k: round(v / max_val, 4) for k, v in top10.items()}
 
 
 # ── Daily summary ──────────────────────────────────────────
