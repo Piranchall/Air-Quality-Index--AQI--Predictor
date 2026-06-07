@@ -158,20 +158,34 @@ AQICN_STATION=A401143
 
 ### 4. Run the historical backfill
 ```bash
-python feature_pipeline/backfill_historical.py
+python feature_pipeline/backfill_historical.py --start 2026-05-31 --end 2026-05-31
+```
+### 5. Feature pipeline (live upload)
+```bash
+python feature_pipeline/upload_to_store.py
 ```
 
-### 5. Train the models
+### 6. Train the models
 ```bash
 python training_pipeline/train.py
 ```
 
-### 6. Launch the dashboard
+### 7. Register model
 ```bash
-streamlit run dashboard/app.py
+python training_pipeline/register_model.py
 ```
 
-### 7. Launch the REST API
+### 8. Inference
+```bash
+python inference_pipeline/predict.py
+```
+
+### 9. Launch the dashboard
+```bash
+python -m streamlit run dashboard/app.py
+```
+
+### 10. Launch the REST API locally (optional)
 ```bash
 python -m uvicorn api.main:app --reload --port 8000
 # Visit http://localhost:8000/docs for interactive Swagger UI
@@ -186,7 +200,7 @@ python -m uvicorn api.main:app --reload --port 8000
 | [AQICN](https://aqicn.org/api/) | Real-time AQI, PM2.5, PM10, O3, NO2, SO2, CO | ✅ Yes |
 | [OpenWeatherMap](https://openweathermap.org/api) | Temperature, humidity, wind, pressure | ✅ Yes |
 | [Hopsworks](https://www.hopsworks.ai/) | Feature Store + Model Registry | ✅ Yes (free tier) |
-
+| [Open-Meteo](https://open-meteo.com/) | Historical weather + AQI backfill | ✅ Yes (no API key needed)
 ---
 
 ## ⚙️ Automated CI/CD Pipelines
