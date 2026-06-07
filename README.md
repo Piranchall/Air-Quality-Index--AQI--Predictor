@@ -114,6 +114,7 @@ Air-Quality-Index-(AQI)-Predictor/
 │   └── training_pipeline.yml      # Daily retraining
 │
 ├── config.py                      # Central configuration
+├── AQI_Predictor_Report.pdf       # Technical Project Report (PDF)
 ├── requirements.txt               # Full dependencies
 └── requirements-api.txt           # API-only dependencies
 ```
