@@ -104,7 +104,7 @@ def load_latest_features(project, feature_names: list) -> pd.DataFrame:
         version=FEATURE_GROUP_VERSION,
     )
  
-    df = fg.read()
+    df = fg.read(online=True)
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     df = df.sort_values("timestamp").tail(48).reset_index(drop=True)
  
@@ -299,9 +299,8 @@ def get_daily_summary(forecast_df: pd.DataFrame) -> list[dict]:
     """
     summaries = []
     for date, group in forecast_df.groupby("date"):
-        # Skip partial days — need at least 20 hours to be meaningful
-        # if len(group) < 6:
-        #     continue
+        if len(group) < 1:
+            continue
         
         avg_aqi  = group["predicted_aqi"].mean()
         max_aqi  = group["predicted_aqi"].max()
@@ -364,6 +363,9 @@ def run_inference() -> dict:
     # Drop the partial hours before first midnight
     first_midnight = (now + timedelta(hours=hours_until_midnight)).strftime("%Y-%m-%d")
     forecast_df = forecast_df[forecast_df["date"] >= first_midnight].reset_index(drop=True)
+
+    # Trim to exactly 3 days worth of hours
+    forecast_df = forecast_df.head(FORECAST_DAYS * 24).reset_index(drop=True)
 
     # Daily summary
     daily_summary = get_daily_summary(forecast_df)
