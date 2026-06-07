@@ -1,8 +1,0 @@
-{
-  "python": {
-    "version": "3.11"
-  },
-  "install": {
-    "cmd": "pip install -r requirements-api.txt"
-  }
-}
