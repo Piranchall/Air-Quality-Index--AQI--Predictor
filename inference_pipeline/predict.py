@@ -88,32 +88,100 @@ def load_model_from_registry(project) -> tuple:
     )
     return model, feature_names, metadata
 
+# def load_latest_features(project, feature_names: list) -> pd.DataFrame:
+#     """
+#     Load the most recent 24 hours of features from the Feature Store.
+#     These are used as the seed for iterative forecasting.
+ 
+#     Returns:
+#         DataFrame with last 24 rows, sorted by timestamp
+#     """
+#     logger.info("Loading latest features from Feature Store...")
+ 
+#     fs = project.get_feature_store()
+#     fg = fs.get_feature_group(
+#         name=FEATURE_GROUP_NAME,
+#         version=FEATURE_GROUP_VERSION,
+#     )
+ 
+#     df = fg.read(online=True)
+#     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+#     df = df.sort_values("timestamp").tail(48).reset_index(drop=True)
+ 
+#     # Recompute lag features from actual AQI values
+#     # Fixes NaN lags in live rows inserted one at a time
+#     df["aqi_lag_1h"]  = df["aqi"].shift(1)
+#     df["aqi_lag_3h"]  = df["aqi"].shift(3)
+#     df["aqi_lag_6h"]  = df["aqi"].shift(6)
+#     df["aqi_lag_24h"] = df["aqi"].shift(24)
+#     df["aqi_rolling_mean_3h"]  = df["aqi"].rolling(3,  min_periods=1).mean()
+#     df["aqi_rolling_mean_6h"]  = df["aqi"].rolling(6,  min_periods=1).mean()
+#     df["aqi_rolling_mean_24h"] = df["aqi"].rolling(24, min_periods=1).mean()
+#     df["aqi_rolling_std_3h"]   = df["aqi"].rolling(3,  min_periods=1).std().fillna(0)
+#     df["aqi_rolling_max_6h"]   = df["aqi"].rolling(6,  min_periods=1).max()
+#     df["aqi_change_rate"]      = df["aqi"].diff(1).fillna(0)
+#     df["aqi_change_rate_3h"]   = df["aqi"].diff(3).fillna(0)
+ 
+#     # Use last 24 rows as seed
+#     df = df.tail(24).reset_index(drop=True)
+ 
+#     logger.info(f"Seed data range: {df['timestamp'].min()} → {df['timestamp'].max()}")
+#     logger.success(f"Loaded {len(df)} rows with recomputed lags")
+#     return df
+
 def load_latest_features(project, feature_names: list) -> pd.DataFrame:
     """
     Load the most recent 24 hours of features from the Feature Store.
-    These are used as the seed for iterative forecasting.
- 
-    Returns:
-        DataFrame with last 24 rows, sorted by timestamp
+    Automatically falls back to online store if offline materialization is stale (>1.5h behind).
     """
     logger.info("Loading latest features from Feature Store...")
- 
+
+    import datetime
+
     fs = project.get_feature_store()
     fg = fs.get_feature_group(
         name=FEATURE_GROUP_NAME,
         version=FEATURE_GROUP_VERSION,
     )
- 
-    df = fg.read(online=True)
+
+    # ── Check if offline store is fresh ───────────────
+    use_online = False
+    try:
+        df_check = fg.read()
+        df_check["timestamp"] = pd.to_datetime(df_check["timestamp"], utc=True)
+        latest_ts = df_check["timestamp"].max()
+        now = datetime.datetime.now(datetime.timezone.utc)
+        age_hours = (now - latest_ts).total_seconds() / 3600
+
+        if age_hours > 1.5:
+            logger.warning(f"Offline store is {age_hours:.1f}h behind — switching to online store")
+            use_online = True
+        else:
+            logger.info(f"Offline store is fresh ({age_hours:.1f}h old) — using offline store")
+            df = df_check  # reuse what we already read
+
+    except Exception as e:
+        logger.warning(f"Could not check offline store: {e} — defaulting to online store")
+        use_online = True
+
+    # ── Load from appropriate store ───────────────────
+    if use_online:
+        try:
+            df = fg.select_all().read(online=True)
+            logger.info("Loaded from online store (RonDB)")
+        except Exception as e:
+            logger.warning(f"Online store failed: {e} — retrying offline store")
+            df = fg.read()
+            logger.info("Loaded from offline store (fallback)")
+
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     df = df.sort_values("timestamp").tail(48).reset_index(drop=True)
- 
+
     # Recompute lag features from actual AQI values
-    # Fixes NaN lags in live rows inserted one at a time
-    df["aqi_lag_1h"]  = df["aqi"].shift(1)
-    df["aqi_lag_3h"]  = df["aqi"].shift(3)
-    df["aqi_lag_6h"]  = df["aqi"].shift(6)
-    df["aqi_lag_24h"] = df["aqi"].shift(24)
+    df["aqi_lag_1h"]           = df["aqi"].shift(1)
+    df["aqi_lag_3h"]           = df["aqi"].shift(3)
+    df["aqi_lag_6h"]           = df["aqi"].shift(6)
+    df["aqi_lag_24h"]          = df["aqi"].shift(24)
     df["aqi_rolling_mean_3h"]  = df["aqi"].rolling(3,  min_periods=1).mean()
     df["aqi_rolling_mean_6h"]  = df["aqi"].rolling(6,  min_periods=1).mean()
     df["aqi_rolling_mean_24h"] = df["aqi"].rolling(24, min_periods=1).mean()
@@ -121,14 +189,12 @@ def load_latest_features(project, feature_names: list) -> pd.DataFrame:
     df["aqi_rolling_max_6h"]   = df["aqi"].rolling(6,  min_periods=1).max()
     df["aqi_change_rate"]      = df["aqi"].diff(1).fillna(0)
     df["aqi_change_rate_3h"]   = df["aqi"].diff(3).fillna(0)
- 
-    # Use last 24 rows as seed
+
     df = df.tail(24).reset_index(drop=True)
- 
+
     logger.info(f"Seed data range: {df['timestamp'].min()} → {df['timestamp'].max()}")
     logger.success(f"Loaded {len(df)} rows with recomputed lags")
     return df
-
 
 # ── Iterative forecasting ──────────────────────────────────
 
